@@ -3,12 +3,25 @@
 <head>
     <title>Estoque</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .estoque-baixo {
+            background-color: #fff3cd !important;
+            font-weight: bold;
+        }
+        .badge-estoque {
+            font-size: 0.85em;
+        }
+        .card-header {
+            padding: 0.75rem 1.25rem;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="/estoque">Estoque</a>
+            <a class="navbar-brand" href="/estoque">Sistema de Estoque</a>
             <div class="navbar-nav">
+                <a class="nav-link" href="/estoque">Estoque</a>
                 <a class="nav-link" href="/movimentacoes">Movimentações</a>
                 {% if session.perfil == 'admin' %}
                 <a class="nav-link" href="/usuarios">Usuários</a>
@@ -22,43 +35,62 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
 
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5>Adicionar Produto</h5>
+        <div class="card mb-4 shadow">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Controle de Estoque</h5>
+                    <span class="badge bg-light text-dark">
+                        {% set baixos = [] %}
+                        {% for produto in produtos if produto.quantidade < produto.quantidade_minima %}
+                            {% set _ = baixos.append(produto) %}
+                        {% endfor %}
+                        Alertas: {{ baixos|length }}
+                    </span>
+                </div>
             </div>
             <div class="card-body">
                 <form method="POST" action="/adicionar_produto">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <input type="text" class="form-control" name="nome" placeholder="Nome" required>
-                        </div>
-                        <div class="col-md-4">
-                            <input type="number" class="form-control" name="quantidade" placeholder="Quantidade" required min="0">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <input type="text" class="form-control" name="nome" placeholder="Nome do produto" required>
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-success w-100">Adicionar</button>
+                            <input type="number" class="form-control" name="quantidade" placeholder="Qtd. atual" required min="0">
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" class="form-control" name="quantidade_minima" placeholder="Qtd. mínima" required min="1" value="1">
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-plus-circle"></i> Adicionar
+                            </button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
 
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5>Movimentação</h5>
+        <div class="card mb-4 shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Registrar Movimentação</h5>
             </div>
             <div class="card-body">
                 <form method="POST" action="/movimentar">
-                    <div class="row">
-                        <div class="col-md-4">
+                    <div class="row g-3">
+                        <div class="col-md-5">
                             <select class="form-select" name="produto_id" required>
                                 {% for produto in produtos %}
-                                <option value="{{ produto.id }}">{{ produto.nome }} ({{ produto.quantidade }})</option>
+                                <option value="{{ produto.id }}">
+                                    {{ produto.id }} - {{ produto.nome }} (Estoque: {{ produto.quantidade }} | Mín: {{ produto.quantidade_minima }})
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -68,39 +100,70 @@
                                 <option value="saida">Saída</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-2">
                             <input type="number" class="form-control" name="quantidade" placeholder="Quantidade" required min="1">
                         </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary w-100">Registrar</button>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-arrow-left-right"></i> Registrar
+                            </button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
 
-        <table class="table table-striped">
-            <thead class="table-dark">
-                <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>Quantidade</th>
-                    <th class="text-center">Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for produto in produtos %}
-                <tr>
-                    <td>{{ produto.id }}</td>
-                    <td>{{ produto.nome }}</td>
-                    <td>{{ produto.quantidade }}</td>
-                    <td class="text-center">
-                        <a href="/remover_produto/{{ produto.id }}" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza?')">Remover</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Lista de Produtos</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Produto</th>
+                                <th class="text-end">Estoque</th>
+                                <th class="text-end">Mínimo</th>
+                                <th>Status</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for produto in produtos %}
+                            <tr class="{% if produto.quantidade < produto.quantidade_minima %}estoque-baixo{% endif %}">
+                                <td>{{ produto.id }}</td>
+                                <td>{{ produto.nome }}</td>
+                                <td class="text-end">{{ produto.quantidade }}</td>
+                                <td class="text-end">{{ produto.quantidade_minima }}</td>
+                                <td>
+                                    {% if produto.quantidade < produto.quantidade_minima %}
+                                        <span class="badge bg-warning text-dark badge-estoque">ESTOQUE BAIXO</span>
+                                    {% elif produto.quantidade == produto.quantidade_minima %}
+                                        <span class="badge bg-info text-dark badge-estoque">NO LIMITE</span>
+                                    {% else %}
+                                        <span class="badge bg-success badge-estoque">NORMAL</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <a href="/remover_produto/{{ produto.id }}" 
+                                       class="btn btn-sm btn-danger" 
+                                       onclick="return confirm('Tem certeza que deseja remover {{ produto.nome }}?')">
+                                        <i class="bi bi-trash"></i> Remover
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Adicione isso antes do fechamento do body para ícones do Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

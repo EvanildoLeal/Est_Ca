@@ -20,7 +20,10 @@ class Produto(db.Model):
     nome = db.Column(db.String(150), nullable=False)
     quantidade = db.Column(db.Integer, default=0)
     quantidade_minima = db.Column(db.Integer, default=1)
+    data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def __repr__(self):
+        return f'<Produto {self.nome}>'
 class Usuario(db.Model):
     __tablename__ = 'tbl_usuarios'
     id = db.Column(db.Integer, primary_key=True)
@@ -38,7 +41,8 @@ class Movimentacao(db.Model):
     id_usuarios = db.Column(db.Integer, db.ForeignKey('tbl_usuarios.id'), nullable=False)
     id_produtos = db.Column(db.Integer, db.ForeignKey('tbl_produtos.id'), nullable=False)
     
-    produto = db.relationship('Produto', backref='movimentacoes')
+    # Relacionamentos definidos APENAS AQUI
+    produto = db.relationship('Produto', backref=db.backref('movimentacoes', cascade='all, delete-orphan'))
     usuario = db.relationship('Usuario', backref='movimentacoes')
 
 # Rotas básicas
@@ -82,24 +86,27 @@ def adicionar_produto():
     if 'usuario' not in session:
         return redirect(url_for('login'))
     
-    nome = request.form['nome']
-    quantidade = int(request.form['quantidade'])
+    try:
+        nome = request.form['nome']
+        quantidade = int(request.form['quantidade'])
+        quantidade_minima = int(request.form['quantidade_minima'])  # Convertendo para int
+        
+        novo_produto = Produto(
+            nome=nome,
+            quantidade=quantidade,
+            quantidade_minima=quantidade_minima  # Adicionando o campo
+        )
+        
+        db.session.add(novo_produto)
+        db.session.commit()
+        
+        flash('Produto adicionado com sucesso!', 'success')
+    except ValueError:
+        flash('Quantidade deve ser um número válido', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao adicionar produto: {str(e)}', 'danger')
     
-    novo_produto = Produto(nome=nome, quantidade=quantidade)
-    db.session.add(novo_produto)
-    db.session.commit()
-    
-    # Registrar movimentação de entrada inicial
-    nova_mov = Movimentacao(
-        tipo='entrada',
-        quantidade=quantidade,
-        id_usuarios=session['id_usuario'],
-        id_produtos=novo_produto.id
-    )
-    db.session.add(nova_mov)
-    db.session.commit()
-    
-    flash('Produto adicionado com sucesso!', 'success')
     return redirect(url_for('estoque'))
 
 @app.route('/remover_produto/<int:id>')
@@ -168,14 +175,22 @@ def adicionar_usuario():
         flash('Acesso restrito a administradores', 'danger')
         return redirect(url_for('estoque'))
     
+    print(f"Perfil recebido no formulário: {request.form['perfil']}")  # Debug
+    
     novo_usuario = Usuario(
         nome=request.form['nome'],
         login=request.form['login'],
         senha=request.form['senha'],
-        perfil=request.form['perfil']
+        perfil=request.form['perfil']  # Confirme que está usando o valor do form
     )
+    
     db.session.add(novo_usuario)
     db.session.commit()
+    
+    # Debug: verifique o que foi realmente salvo
+    usuario_salvo = Usuario.query.filter_by(login=request.form['login']).first()
+    print(f"Perfil salvo no banco: {usuario_salvo.perfil}")
+    
     flash('Usuário cadastrado com sucesso!', 'success')
     return redirect(url_for('usuarios'))
 
@@ -189,6 +204,23 @@ def remover_usuario(id):
     db.session.delete(usuario)
     db.session.commit()
     flash('Usuário removido com sucesso!', 'success')
+    return redirect(url_for('usuarios'))
+
+@app.route('/alterar_perfil/<int:user_id>/<novo_perfil>')
+def alterar_perfil(user_id, novo_perfil):
+    if 'perfil' not in session or session['perfil'] != 'admin':
+        flash('Acesso restrito a administradores', 'danger')
+        return redirect(url_for('index'))
+    
+    if novo_perfil not in ['admin', 'comum']:
+        flash('Perfil inválido', 'danger')
+        return redirect(url_for('usuarios'))
+    
+    usuario = Usuario.query.get_or_404(user_id)
+    usuario.perfil = novo_perfil
+    db.session.commit()
+    
+    flash(f'Perfil de {usuario.nome} alterado para {novo_perfil}!', 'success')
     return redirect(url_for('usuarios'))
 
 # Criar banco de dados (executar apenas uma vez)
@@ -206,6 +238,55 @@ def criar_banco():
             db.session.add(admin)
             db.session.commit()
 
+# Executar apenas uma vez para migrar os dados existentes
+def migrar_perfis():
+    with app.app_context():
+        usuarios = Usuario.query.filter_by(perfil='usuario').all()
+        for usuario in usuarios:
+            usuario.perfil = 'comum'
+        db.session.commit()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def resetar_banco_completo():
+    with app.app_context():
+        # Desativa verificações de FK temporariamente
+        db.session.execute('SET FOREIGN_KEY_CHECKS = 0')
+        
+        # Destroi todas as tabelas
+        db.drop_all()
+        
+        # Cria todas as tabelas novas
+        db.create_all()
+        
+        # Reativa verificações
+        db.session.execute('SET FOREIGN_KEY_CHECKS = 1')
+        
+        # Adiciona admin padrão se não existir
+        if not Usuario.query.filter_by(login='admin').first():
+            admin = Usuario(
+                nome='Administrador',
+                login='admin',
+                senha='admin123',
+                perfil='admin'
+            )
+            db.session.add(admin)
+            db.session.commit()
+        
+        print("✅ Banco de dados resetado com sucesso!")
+        
 if __name__ == '__main__':
     criar_banco()
     app.run(debug=True)

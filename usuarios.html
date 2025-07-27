@@ -30,9 +30,9 @@
                     <input type="password" class="form-control" name="senha" placeholder="Senha" required>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="perfil" required>
-                        <option value="comum">Usuário</option>
-                        <option value="admin">Administrador</option>
+                    <select name="perfil" class="form-control" required>
+                        <option value="comum">Comum</option>
+                        <option value="admin" selected>Administrador</option> <!-- "selected" faz ser a opção padrão -->
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -58,11 +58,13 @@
                     <td>{{ usuario.nome }}</td>
                     <td>{{ usuario.login }}</td>
                     <td>
-                        {% if usuario.perfil == 'admin' %}
-                        <span class="badge bg-danger">Administrador</span>
-                        {% else %}
-                        <span class="badge bg-primary">Usuário</span>
-                        {% endif %}
+                        <td>
+                            {% if usuario.perfil == 'admin' %}
+                                Administrador
+                            {% else %}
+                                Comum  <!-- Isso força exibir como "Comum" mesmo se no BD estiver diferente -->
+                            {% endif %}
+                        </td>
                     </td>
                     <td class="text-center">
                         <a href="/remover_usuario/{{ usuario.id }}" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza?')">Remover</a>
